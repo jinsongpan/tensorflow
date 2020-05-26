@@ -28,9 +28,20 @@ namespace grappler {
 
 Status DebugStripper::Optimize(Cluster* cluster, const GrapplerItem& item,
                                GraphDef* output) {
+  bool can_optimize = false;
+  for (const NodeDef& node : item.graph.node()) {
+    if (IsAssert(node) || IsCheckNumerics(node) || IsPrint(node)) {
+      can_optimize = true;
+      break;
+    }
+  }
+  if (!can_optimize) {
+    return errors::Aborted("Nothing to do.");
+  }
+
   *output = item.graph;
   for (NodeDef& node : *output->mutable_node()) {
-    if (IsAssert(node)) {
+    if (IsAssert(node) || node.op() == "PrintV2") {
       // Convert this node into a no-op.
       node.set_op("NoOp");
       node.clear_attr();
@@ -38,10 +49,10 @@ Status DebugStripper::Optimize(Cluster* cluster, const GrapplerItem& item,
       // be optimized away by dependency optimizer.
       for (string& inp : *node.mutable_input()) {
         if (!IsControlInput(inp)) {
-          inp = AsControlDependency(inp);
+          inp = AsControlDependency(NodeName(inp));
         }
       }
-    } else if (IsCheckNumerics(node) || IsPrint(node)) {
+    } else if (IsCheckNumerics(node) || node.op() == "Print") {
       // Replace with Identity op which will be pruned later.
       node.set_op("Identity");
       // Only preserve T attribute.
@@ -54,7 +65,7 @@ Status DebugStripper::Optimize(Cluster* cluster, const GrapplerItem& item,
       // input.
       for (size_t i = 1; i < node.input_size(); ++i) {
         if (!IsControlInput(node.input(i))) {
-          *node.mutable_input(i) = AsControlDependency(node.input(i));
+          *node.mutable_input(i) = AsControlDependency(NodeName(node.input(i)));
         }
       }
     }

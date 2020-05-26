@@ -43,8 +43,6 @@ limitations under the License.
 #include "tensorflow/core/lib/random/distribution_sampler.h"
 #include "tensorflow/core/lib/strings/stringprintf.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
-#include "tensorflow/core/util/sparse/group_iterator.h"
-#include "tensorflow/core/util/sparse/sparse_tensor.h"
 #include "tensorflow/core/util/work_sharder.h"
 
 namespace tensorflow {
@@ -210,7 +208,7 @@ class FeatureWeightsDenseStorage {
   // Nominals here are the original weight matrix.
   TTypes<const float>::Matrix nominals() const { return nominals_; }
 
-  // Delta weights durining mini-batch updates.
+  // Delta weights during mini-batch updates.
   TTypes<float>::Matrix deltas() const { return deltas_; }
 
   // Updates delta weights based on active dense features in the example and
@@ -253,7 +251,7 @@ class FeatureWeightsSparseStorage {
     return nominals_(class_id, it->second);
   }
 
-  // Delta weights durining mini-batch updates.
+  // Delta weights during mini-batch updates.
   float deltas(const int class_id, const int64 index) const {
     auto it = indices_to_id_.find(index);
     return deltas_(class_id, it->second);

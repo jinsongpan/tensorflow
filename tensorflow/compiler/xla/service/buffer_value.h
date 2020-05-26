@@ -19,12 +19,12 @@ limitations under the License.
 #include <functional>
 #include <string>
 
+#include "absl/types/span.h"
 #include "tensorflow/compiler/xla/service/hlo.pb.h"
 #include "tensorflow/compiler/xla/service/hlo_instruction.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/core/lib/gtl/array_slice.h"
 #include "tensorflow/core/lib/gtl/int_type.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
@@ -141,6 +141,9 @@ class BufferValue {
   // operator< is required for std::set.
   bool operator<(const BufferValue& other) const { return id_ < other.id_; }
 
+  bool operator==(const BufferValue& other) const { return id_ == other.id_; }
+  bool operator!=(const BufferValue& other) const { return id_ != other.id_; }
+
   virtual string ToString() const = 0;
 
   // TODO(lauj) rename LogicalBufferProto to BufferValueProto.
@@ -157,7 +160,7 @@ class BufferValue {
   BufferValue(HloInstruction* instruction, const ShapeIndex& index, Id id);
 
  private:
-  // The definining instruction and index are not stored here; they can be found
+  // The defining instruction and index are not stored here; they can be found
   // in the LogicalBuffer and HloValue subclasses. This class exists only to
   // support migrations from TuplePointsToAnalysis to HloDataflowAnalysis, by
   // allowing abstract use of LogicalBuffer or HloValue. After those migrations

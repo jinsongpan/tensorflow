@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/compiler/xla/client/local_client.h"
-#include "tensorflow/compiler/xla/client/xla_client/xla_builder.h"
+#include "tensorflow/compiler/xla/client/xla_builder.h"
 #include "tensorflow/compiler/xla/service/local_service.h"
 #include "tensorflow/compiler/xla/test_helpers.h"
 #include "tensorflow/compiler/xla/tests/local_client_test_base.h"
@@ -30,9 +30,9 @@ class HloMetadataTest : public LocalClientTestBase {
   }
 
   void BuildAddComputation(XlaBuilder* builder) {
-    auto x = builder->Parameter(0, ShapeUtil::MakeShape(F32, {}), "x");
-    auto y = builder->Parameter(1, ShapeUtil::MakeShape(F32, {}), "y");
-    builder->Add(x, y);
+    auto x = Parameter(builder, 0, ShapeUtil::MakeShape(F32, {}), "x");
+    auto y = Parameter(builder, 1, ShapeUtil::MakeShape(F32, {}), "y");
+    Add(x, y);
   }
 
   OpMetadata metadata_;
@@ -46,12 +46,13 @@ TEST_F(HloMetadataTest, MetadataPropagation) {
 
   Shape argument_layout = ShapeUtil::MakeShape(F32, {});
   TF_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<LocalExecutable> executable,
+      auto executables,
       local_client_->Compile(builder.Build().ValueOrDie(),
                              {&argument_layout, &argument_layout},
                              ExecutableBuildOptions()));
 
-  auto instruction = executable->executable()
+  auto instruction = executables[0]
+                         ->executable()
                          ->module()
                          .entry_computation()
                          ->root_instruction();
@@ -67,15 +68,14 @@ TEST_F(HloMetadataTest, MetadataClearing) {
   BuildAddComputation(&builder);
 
   Shape argument_layout = ShapeUtil::MakeShape(F32, {});
-  auto executable_status = local_client_->Compile(
-      builder.Build().ValueOrDie(), {&argument_layout, &argument_layout},
-      ExecutableBuildOptions());
-  ASSERT_IS_OK(executable_status);
+  TF_ASSERT_OK_AND_ASSIGN(
+      auto executables,
+      local_client_->Compile(builder.Build().ValueOrDie(),
+                             {&argument_layout, &argument_layout},
+                             ExecutableBuildOptions()));
 
-  std::unique_ptr<LocalExecutable> executable =
-      executable_status.ConsumeValueOrDie();
-
-  auto instruction = executable->executable()
+  auto instruction = executables[0]
+                         ->executable()
                          ->module()
                          .entry_computation()
                          ->root_instruction();

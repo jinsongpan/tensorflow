@@ -59,7 +59,7 @@ void FIFOQueue::TryEnqueue(const Tuple& tuple, OpKernelContext* ctx,
     if (!already_cancelled) {
       enqueue_attempts_.emplace_back(
           1, callback, ctx, cm, token,
-          [tuple, this](Attempt* attempt) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          [tuple, this](Attempt* attempt) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
             if (closed_) {
               attempt->context->SetStatus(
                   errors::Cancelled("FIFOQueue '", name_, "' is closed."));
@@ -117,7 +117,7 @@ void FIFOQueue::TryEnqueueMany(const Tuple& tuple, OpKernelContext* ctx,
     if (!already_cancelled) {
       enqueue_attempts_.emplace_back(
           batch_size, callback, ctx, cm, token,
-          [tuple, this](Attempt* attempt) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          [tuple, this](Attempt* attempt) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
             if (closed_) {
               attempt->context->SetStatus(
                   errors::Cancelled("FIFOQueue '", name_, "' is closed."));
@@ -164,7 +164,7 @@ void FIFOQueue::TryDequeue(OpKernelContext* ctx, CallbackWithTuple callback) {
       // TODO(josh11b): This makes two copies of callback, avoid this if possible.
       dequeue_attempts_.emplace_back(
           1, [callback]() { callback(Tuple()); }, ctx, cm, token,
-          [callback, this](Attempt* attempt) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+          [callback, this](Attempt* attempt) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
             const int64 queue_size = queues_[0].size();
             if (closed_ && queue_size == 0) {
               attempt->context->SetStatus(errors::OutOfRange(
@@ -256,7 +256,7 @@ void FIFOQueue::TryDequeueMany(int num_elements, OpKernelContext* ctx,
       dequeue_attempts_.emplace_back(
           num_elements, [callback]() { callback(Tuple()); }, ctx, cm, token,
           [callback, allow_small_batch,
-           this](Attempt* attempt) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+           this](Attempt* attempt) TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
             int64 queue_size = queues_[0].size();
 
             if (closed_ && queue_size < attempt->elements_requested) {
@@ -364,6 +364,21 @@ Status FIFOQueue::MatchesNodeDef(const NodeDef& node_def) {
   TF_RETURN_IF_ERROR(MatchesNodeDefTypes(node_def));
   TF_RETURN_IF_ERROR(MatchesNodeDefShapes(node_def));
   return Status::OK();
+}
+
+// Defines a FIFOQueueOp, which produces a Queue (specifically, one
+// backed by FIFOQueue) that persists across different graph
+// executions, and sessions. Running this op produces a single-element
+// tensor of handles to Queues in the corresponding device.
+FIFOQueueOp::FIFOQueueOp(OpKernelConstruction* context)
+    : TypedQueueOp(context) {
+  OP_REQUIRES_OK(context, context->GetAttr("shapes", &component_shapes_));
+}
+
+Status FIFOQueueOp::CreateResource(QueueInterface** ret) {
+  FIFOQueue* queue = new FIFOQueue(capacity_, component_types_,
+                                   component_shapes_, cinfo_.name());
+  return CreateTypedQueue(queue, ret);
 }
 
 }  // namespace tensorflow
